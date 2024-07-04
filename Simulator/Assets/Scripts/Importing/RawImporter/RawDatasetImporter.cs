@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace UnityVolumeRendering
 {
+    [Serializable]
     public enum DataContentFormat
     {
         Int8,
@@ -14,6 +16,7 @@ namespace UnityVolumeRendering
         Uint32
     }
 
+    [Serializable]
     public enum Endianness
     {
         LittleEndian,
@@ -62,7 +65,44 @@ namespace UnityVolumeRendering
                 return null;
             }
 
-            VolumeDataset dataset = new VolumeDataset();
+            VolumeDataset dataset = ScriptableObject.CreateInstance<VolumeDataset>();
+            ImportInternal(dataset, reader, fs);
+
+            return dataset;
+        }
+        public async Task<VolumeDataset> ImportAsync()
+        {
+            // Check that the file exists
+            if (!File.Exists(filePath))
+            {
+                Debug.LogError("The file does not exist: " + filePath);
+                return null;
+            }
+            FileStream fs = null;
+            BinaryReader reader = null;
+
+            await Task.Run(() => {
+                fs = new FileStream(filePath, FileMode.Open);
+                reader = new BinaryReader(fs);    
+            });
+
+            // Check that the dimension does not exceed the file size
+            long expectedFileSize = (long)(dimX * dimY * dimZ) * GetSampleFormatSize(contentFormat) + skipBytes;
+            if (fs.Length < expectedFileSize)
+            {
+                Debug.LogError($"The dimension({dimX}, {dimY}, {dimZ}) exceeds the file size. Expected file size is {expectedFileSize} bytes, while the actual file size is {fs.Length} bytes");
+                reader.Close();
+                fs.Close();
+                return null;
+            }
+            VolumeDataset dataset = ScriptableObject.CreateInstance<VolumeDataset>();
+
+            await Task.Run(() => ImportInternal(dataset, reader, fs));
+
+            return dataset;
+        }
+        private void ImportInternal(VolumeDataset dataset, BinaryReader reader, FileStream fs)
+        {
             dataset.datasetName = Path.GetFileName(filePath);
             dataset.filePath = filePath;
             dataset.dimX = dimX;
@@ -87,10 +127,8 @@ namespace UnityVolumeRendering
             fs.Close();
 
             dataset.FixDimensions();
-
-            return dataset;
+            dataset.rotation = Quaternion.Euler(90.0f, 0.0f, 0.0f);
         }
-
         private int ReadDataValue(BinaryReader reader)
         {
             switch (contentFormat)
@@ -159,22 +197,16 @@ namespace UnityVolumeRendering
             {
                 case DataContentFormat.Int8:
                     return 1;
-                    break;
                 case DataContentFormat.Uint8:
                     return 1;
-                    break;
                 case DataContentFormat.Int16:
                     return 2;
-                    break;
                 case DataContentFormat.Uint16:
                     return 2;
-                    break;
                 case DataContentFormat.Int32:
                     return 4;
-                    break;
                 case DataContentFormat.Uint32:
                     return 4;
-                    break;
             }
             throw new NotImplementedException();
         }

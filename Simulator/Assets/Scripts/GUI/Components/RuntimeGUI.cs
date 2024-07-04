@@ -17,21 +17,30 @@ namespace UnityVolumeRendering
         {
             GUILayout.BeginVertical();
 
-
-            // Show dataset import buttons
+             // Show dataset import buttons
             if (GUILayout.Button("Import RAW dataset"))
             {
-                RuntimeFileBrowser.ShowOpenFileDialog(OnOpenRAWDatasetResult, "DataFiles");
+                RuntimeFileBrowser.ShowOpenFileDialog(OnOpenRAWDatasetResultAsync, "DataFiles");
             }
 
-            if (GUILayout.Button("Import PARCHG dataset"))
+            if(GUILayout.Button("Import PARCHG dataset"))
             {
-                RuntimeFileBrowser.ShowOpenFileDialog(OnOpenPARDatasetResult, "DataFiles");
+                    RuntimeFileBrowser.ShowOpenFileDialog(OnOpenPARDatasetResultAsync, "DataFiles");
             }
 
             if (GUILayout.Button("Import DICOM dataset"))
             {
-                RuntimeFileBrowser.ShowOpenDirectoryDialog(OnOpenDICOMDatasetResult);
+                RuntimeFileBrowser.ShowOpenDirectoryDialog(OnOpenDICOMDatasetResultAsync);
+            }
+
+            if (GUILayout.Button("Import NIFTI dataset"))
+            {
+                RuntimeFileBrowser.ShowOpenFileDialog(OnOpenNIFTIDatasetResultAsync);
+            }
+
+            if (GUILayout.Button("Import NRRD dataset"))
+            {
+                RuntimeFileBrowser.ShowOpenFileDialog(OnOpenNRRDDatasetResultAsync);
             }
 
             // Show button for opening the dataset editor (for changing the visualisation)
@@ -45,29 +54,37 @@ namespace UnityVolumeRendering
             {
                 EditSliceGUI.ShowWindow(GameObject.FindObjectOfType<SlicingPlane>());
             }
+            
+            // if (GUILayout.Button("Show distance measure tool"))
+            // {
+            //     DistanceMeasureTool.ShowWindow();
+            // }
 
             GUILayout.EndVertical();
         }
 
-        private void OnOpenPARDatasetResult(RuntimeFileBrowser.DialogResult result)
+        private async void OnOpenPARDatasetResultAsync(RuntimeFileBrowser.DialogResult result)
         {
             if (!result.cancelled)
             {
+                Debug.Log("Async dataset load. Hold on.");
+
                 DespawnAllDatasets();
                 string filePath = result.path;
                 IImageFileImporter parimporter = ImporterFactory.CreateImageFileImporter(ImageFileFormat.VASP);
-                VolumeDataset dataset = parimporter.Import(filePath);
+                VolumeDataset dataset = await parimporter.ImportAsync(filePath);
                 if (dataset != null)
                 {
-                    VolumeObjectFactory.CreateObject(dataset);
+                    await VolumeObjectFactory.CreateObjectAsync(dataset);
                 }
             }
         }
 
-        private void OnOpenRAWDatasetResult(RuntimeFileBrowser.DialogResult result)
+        private async void OnOpenRAWDatasetResultAsync(RuntimeFileBrowser.DialogResult result)
         {
             if (!result.cancelled)
             {
+                Debug.Log("Async dataset load. Hold on.");
 
                 // We'll only allow one dataset at a time in the runtime GUI (for simplicity)
                 DespawnAllDatasets();
@@ -75,7 +92,7 @@ namespace UnityVolumeRendering
                 // Did the user try to import an .ini-file? Open the corresponding .raw file instead
                 string filePath = result.path;
                 if (System.IO.Path.GetExtension(filePath) == ".ini")
-                    filePath = filePath.Replace(".ini", ".raw");
+                    filePath = filePath.Substring(0, filePath.Length - 4);
 
                 // Parse .ini file
                 DatasetIniData initData = DatasetIniReader.ParseIniFile(filePath + ".ini");
@@ -83,20 +100,22 @@ namespace UnityVolumeRendering
                 {
                     // Import the dataset
                     RawDatasetImporter importer = new RawDatasetImporter(filePath, initData.dimX, initData.dimY, initData.dimZ, initData.format, initData.endianness, initData.bytesToSkip);
-                    VolumeDataset dataset = importer.Import();
+                    VolumeDataset dataset = await importer.ImportAsync();
                     // Spawn the object
                     if (dataset != null)
                     {
-                        VolumeObjectFactory.CreateObject(dataset);
+                        await VolumeObjectFactory.CreateObjectAsync(dataset);
                     }
                 }
             }
         }
 
-        private void OnOpenDICOMDatasetResult(RuntimeFileBrowser.DialogResult result)
+        private async void OnOpenDICOMDatasetResultAsync(RuntimeFileBrowser.DialogResult result)
         {
             if (!result.cancelled)
             {
+                Debug.Log("Async dataset load. Hold on.");
+
                 // We'll only allow one dataset at a time in the runtime GUI (for simplicity)
                 DespawnAllDatasets();
 
@@ -108,15 +127,15 @@ namespace UnityVolumeRendering
 
                 // Import the dataset
                 IImageSequenceImporter importer = ImporterFactory.CreateImageSequenceImporter(ImageSequenceFormat.DICOM);
-                IEnumerable<IImageSequenceSeries> seriesList = importer.LoadSeries(fileCandidates);
+                IEnumerable<IImageSequenceSeries> seriesList = await importer.LoadSeriesAsync(fileCandidates);
                 float numVolumesCreated = 0;
                 foreach (IImageSequenceSeries series in seriesList)
                 {
-                    VolumeDataset dataset = importer.ImportSeries(series);
+                    VolumeDataset dataset = await importer.ImportSeriesAsync(series);
                     // Spawn the object
                     if (dataset != null)
                     {
-                        VolumeRenderedObject obj = VolumeObjectFactory.CreateObject(dataset);
+                        VolumeRenderedObject obj = await VolumeObjectFactory.CreateObjectAsync(dataset);
                         obj.transform.position = new Vector3(numVolumesCreated, 0, 0);
                         numVolumesCreated++;
                     }
@@ -124,10 +143,46 @@ namespace UnityVolumeRendering
             }
         }
 
+        private async void OnOpenNIFTIDatasetResultAsync(RuntimeFileBrowser.DialogResult result)
+        {
+            if (!result.cancelled)
+            {
+                IImageFileImporter importer = ImporterFactory.CreateImageFileImporter(ImageFileFormat.NIFTI);
+                VolumeDataset dataset = await importer.ImportAsync(result.path);
+
+                if (dataset != null)
+                {
+                    await VolumeObjectFactory.CreateObjectAsync(dataset);
+                }
+                else
+                {
+                    Debug.LogError("Failed to import datset");
+                }
+            }
+        }
+
+        private async void OnOpenNRRDDatasetResultAsync(RuntimeFileBrowser.DialogResult result)
+        {
+            if (!result.cancelled)
+            {
+                IImageFileImporter importer = ImporterFactory.CreateImageFileImporter(ImageFileFormat.NRRD);
+                VolumeDataset dataset = await importer.ImportAsync(result.path);
+
+                if (dataset != null)
+                {
+                    await VolumeObjectFactory.CreateObjectAsync(dataset);
+                }
+                else
+                {
+                    Debug.LogError("Failed to import datset");
+                }
+            }
+        }
+
         private void DespawnAllDatasets()
         {
             VolumeRenderedObject[] volobjs = GameObject.FindObjectsOfType<VolumeRenderedObject>();
-            foreach (VolumeRenderedObject volobj in volobjs)
+            foreach(VolumeRenderedObject volobj in volobjs)
             {
                 GameObject.Destroy(volobj.gameObject);
             }

@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+using System;
 using UnityEditor;
 using UnityEngine;
 
@@ -15,21 +18,32 @@ namespace UnityVolumeRendering
         {
             GUIStyle headerStyle = new GUIStyle(EditorStyles.label);
             headerStyle.fontSize = 20;
+            headerStyle.fixedHeight = 20;
 
             EditorGUILayout.LabelField("Volume rendering import settings", headerStyle);
             EditorGUILayout.Space();
 
-            EditorGUILayout.LabelField("Show promt asking if you want to downscale the dataset on import?");
-            bool showDownscalePrompt = EditorGUILayout.Toggle("Show downscale prompt", EditorPrefs.GetBool("DownscaleDatasetPrompt"));
-            EditorPrefs.SetBool("DownscaleDatasetPrompt", showDownscalePrompt);
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Show prompt asking if you want to downscale the dataset on import?");
+            bool showDownscalePrompt = EditorGUILayout.Toggle("", PlayerPrefs.GetInt("DownscaleDatasetPrompt") > 0);
+            PlayerPrefs.SetInt("DownscaleDatasetPrompt", showDownscalePrompt ? 1 : 0);
+            EditorGUILayout.EndHorizontal();
 
-#if UNITY_EDITOR_WIN
+            EditorGUILayout.Space();
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Normalise dataset scale on import?");
+            bool normaliseScaleOnImport = EditorGUILayout.Toggle("", PlayerPrefs.GetInt("NormaliseScaleOnImport") > 0);
+            PlayerPrefs.SetInt("NormaliseScaleOnImport", normaliseScaleOnImport ? 1 : 0);
+            EditorGUILayout.EndHorizontal();
+
             EditorGUILayout.Space();
             EditorGUILayout.Space();
+
             EditorGUILayout.LabelField("SimpleITK", headerStyle);
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("SimpleITK is a library that adds support for JPEG-compressed DICOM, as well as NRRD and NIFTI formats.\n" +
-                "Enabling it will start a download of ca 100MBs of binaries. It currently only works on Windows (Linux is WIP)", EditorStyles.wordWrappedLabel);
+                "Enabling it will start a download of ca 100MBs of binaries. Supported platforms: Windows, Linux, MacOS.", EditorStyles.wordWrappedLabel);
 
             if (!SimpleITKManager.IsSITKEnabled())
             {
@@ -46,7 +60,6 @@ namespace UnityVolumeRendering
                     SimpleITKManager.EnableSITK(false);
                 }
             }
-#endif
         }
     }
 }

@@ -1,52 +1,35 @@
 ﻿using UnityEngine;
 using UnityEditor;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine.InputSystem;
-using System;
-using UnityEngine.SceneManagement;
-using UnityEditorInternal;
-using System.Text;
-using System.IO;
-using System.Threading.Tasks;
+using System.Linq;
 
 namespace UnityVolumeRendering
 {
     public class SliceRenderingEditorWindow : EditorWindow
     {
-
-        private List<string[]> rowData = new List<string[]>();
-		private string filePath = "AcquiredData/StdPlanes/Poses/stdplanes_unity.csv";
-		private string imagePath = "AcquiredData/StdPlanes/Acquisitions";
-        private int screenshotIndex = 1;
-        // private float y_offset_up = 21.0f;
-		// private float y_offset_down = 100.0f;
-		// private float x_offset_left = 5.0f;
-        // private float y_offset_up = 21.0f;
-        private float y_offset_up = 21.0f;
-		private float y_offset_down = 3.0f;
-		private float x_offset_left = 0.0f;
-        
         private int selectedPlaneIndex = -1;
-        private bool handleMouseMovement = false;
+        private bool mouseIsDown = false;
+        private Vector2 mousePressPosition;
         private Vector2 prevMousePos;
+        private Vector2 measurePoint;
 
-        void Start()
+        private Texture moveIconTexture;
+        private Texture inspectIconTexture;
+        private Texture measureIconTexture;
+        private Texture lRotateIconTexture;
+        private Texture rRotateIconTexture;
+
+        private InputMode inputMode;
+
+        private enum InputMode
         {
-            string[] rowDataTemp = new string[7];
-			rowDataTemp[0] = "id";
-	        rowDataTemp[1] = "pos_x";
-	        rowDataTemp[2] = "pos_y";
-	        rowDataTemp[3] = "pos_z";
-	        rowDataTemp[4] = "rot_x";
-	        rowDataTemp[5] = "rot_y";
-	        rowDataTemp[6] = "rot_z";
-	        rowData.Add(rowDataTemp);
+            Move,
+            Inspect,
+            Measure
         }
-
+        
         public static void ShowWindow()
         {
-            SliceRenderingEditorWindow wnd = new SliceRenderingEditorWindow();
+            SliceRenderingEditorWindow wnd = EditorWindow.CreateInstance<SliceRenderingEditorWindow>();
             wnd.Show();
             wnd.SetInitialPosition();
         }
@@ -54,9 +37,18 @@ namespace UnityVolumeRendering
         private void SetInitialPosition()
         {
             Rect rect = this.position;
-            rect.width = 800.0f;
-            rect.height = 500.0f;
+            rect.width = 600.0f;
+            rect.height = 600.0f;
             this.position = rect;
+        }
+
+        private void Awake()
+        {
+            moveIconTexture = Resources.Load<Texture>("Icons/MoveIcon");
+            inspectIconTexture = Resources.Load<Texture>("Icons/InspectIcon");
+            measureIconTexture = Resources.Load<Texture>("Icons/MeasureIcon");
+            lRotateIconTexture = Resources.Load<Texture>("Icons/RotateLeft");
+            rRotateIconTexture = Resources.Load<Texture>("Icons/RotateRight");
         }
 
         private void OnFocus()
@@ -75,51 +67,120 @@ namespace UnityVolumeRendering
 
             if (spawnedPlanes.Length > 0)
                 selectedPlaneIndex = selectedPlaneIndex % spawnedPlanes.Length;
+            
+            if (Selection.activeGameObject != null)
+            {
+                int index = System.Array.FindIndex(spawnedPlanes, plane => plane.gameObject == Selection.activeGameObject);
+                if (index != -1)
+                    selectedPlaneIndex = index;
+            }
 
-            // float bgWidth = Mathf.Min(this.position.width - 20.0f, (this.position.height - 50.0f) * 2.0f);
-            float bgWidth = Mathf.Min(this.position.width, (this.position.height - 50.0f) * 2.0f);
-            Rect bgRect = new Rect(0.0f, 0.0f, bgWidth, bgWidth * 0.5f);
+            Rect bgRect = new Rect(0.0f, 40.0f, 0.0f, 0.0f);
+            
             if (selectedPlaneIndex != -1 && spawnedPlanes.Length > 0)
             {
                 SlicingPlane planeObj = spawnedPlanes[System.Math.Min(selectedPlaneIndex, spawnedPlanes.Length - 1)];
+                Vector3 planeScale = planeObj.transform.lossyScale;
+                Vector3 planeNormal = -planeObj.transform.up;
+                
+                float heightWidthRatio = Mathf.Abs(planeScale.z / planeScale.x);
+                float bgWidth = Mathf.Min(this.position.width - 20.0f, (this.position.height - 50.0f) * 2.0f);
+                float bgHeight = Mathf.Min(bgWidth, this.position.height - 150.0f);
+                bgWidth = bgHeight / heightWidthRatio;
+                float ratio = bgWidth / this.position.width;
+                if (ratio > 1.0f)
+                {
+                    bgWidth /= ratio;
+                    bgHeight /= ratio;
+                }
+                bgRect = new Rect(0.0f, 40.0f, bgWidth, bgHeight);
+
+                if (GUI.Toggle(new Rect(0.0f, 0.0f, 40.0f, 40.0f), inputMode == InputMode.Move, new GUIContent(moveIconTexture, "Move slice"), GUI.skin.button))
+                    inputMode = InputMode.Move;
+                if (GUI.Toggle(new Rect(40.0f, 0.0f, 40.0f, 40.0f), inputMode == InputMode.Inspect, new GUIContent(inspectIconTexture, "Inspect values"), GUI.skin.button))
+                    inputMode = InputMode.Inspect;
+                if (GUI.Toggle(new Rect(80.0f, 0.0f, 40.0f, 40.0f), inputMode == InputMode.Measure, new GUIContent(measureIconTexture, "Measure distances"), GUI.skin.button))
+                    inputMode = InputMode.Measure;
+
+                if (GUI.Button(new Rect(Mathf.Max(bgWidth - 80.0f, 120.0f), 0.0f, 40.0f, 40.0f), new GUIContent(lRotateIconTexture, "Rotate plane to the right"), GUI.skin.button))
+                    planeObj.transform.Rotate(planeNormal * -90.0f, Space.World);
+                if (GUI.Button(new Rect(Mathf.Max(bgWidth - 40.0f, 160.0f), 0.0f, 40.0f, 40.0f), new GUIContent(rRotateIconTexture, "Rotate plane to the left"), GUI.skin.button))
+                    planeObj.transform.Rotate(planeNormal * 90.0f, Space.World);
+
+                
                 // Draw the slice view
                 Material mat = planeObj.GetComponent<MeshRenderer>().sharedMaterial;
                 Graphics.DrawTexture(bgRect, mat.GetTexture("_DataTex"), mat);
 
-                    
+                Vector2 relMousePos = Event.current.mousePosition - bgRect.position;
+                Vector2 relMousePosNormalised = relMousePos / new Vector2(bgRect.width, bgRect.height);
+
                 // Handle mouse click inside slice view (activates moving the plane with mouse)
                 if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && bgRect.Contains(new Vector2(Event.current.mousePosition.x, Event.current.mousePosition.y)))
                 {
-                    handleMouseMovement = true;
-                    prevMousePos = Event.current.mousePosition;
+                    mouseIsDown = true;
+                    mousePressPosition = prevMousePos = relMousePosNormalised;
                 }
-
-                // Handle mouse movement (move the plane)
-                if (handleMouseMovement)
+                
+                // Move the plane.
+                if (inputMode == InputMode.Move && mouseIsDown)
                 {
-                    Vector2 mouseOffset = (Event.current.mousePosition - prevMousePos) / new Vector2(bgRect.width, bgRect.height);
+                    Vector2 mouseOffset = relMousePosNormalised - prevMousePos;
                     if (Mathf.Abs(mouseOffset.y) > 0.00001f)
-                    {
-                        planeObj.transform.Translate(Vector3.up * mouseOffset.y);
-                        prevMousePos = Event.current.mousePosition;
-                    }
+                        planeObj.transform.Translate(planeObj.transform.up * mouseOffset.y, Space.World);
                 }
-            }
+                // Show value at mouse position.
+                else if (inputMode == InputMode.Inspect)
+                {
+                    if (mouseIsDown)
+                        measurePoint = relMousePosNormalised;
+                    Vector3 worldSpacePoint = GetWorldPosition(measurePoint, planeObj);
+                    float value = GetValueAtPosition(measurePoint, planeObj);
+                    GUI.Label(new Rect(0.0f, bgRect.y + bgRect.height + 0.0f, 150.0f, 30.0f), $"Value: {value.ToString()}");
+                }
+                // Measure distance between two points.
+                else if (inputMode == InputMode.Measure)
+                {
+                    if (mouseIsDown)
+                        measurePoint = relMousePosNormalised;
+                    
+                    Vector2 start = mousePressPosition;
+                    Vector2 end = measurePoint;
+                    // Convert to data coordinates
+                    Vector3 startDataPos = GetDataPosition(start, planeObj);
+                    Vector3 endDatapos = GetDataPosition(end, planeObj);
+                    
+                    // Display distance
+                    float distance = Vector3.Distance(startDataPos, endDatapos);
+                    GUI.Label(new Rect(0.0f, bgRect.y + bgRect.height + 0.0f, 150.0f, 30.0f), $"Distance: {distance.ToString()}");
+                    
+                    // Draw line
+                    Vector2 lineStart = start * new Vector2(bgRect.width, bgRect.height) + new Vector2(bgRect.x, bgRect.y);
+                    Vector2 lineEnd = end * new Vector2(bgRect.width, bgRect.height) + new Vector2(bgRect.x, bgRect.y);
+                    Handles.BeginGUI();
+                    Handles.color = Color.red;
+                    Handles.DrawLine(lineStart, lineEnd);
+                    Handles.EndGUI();
+                }
 
-            if (Event.current.type == EventType.MouseUp)
-                handleMouseMovement = false;
+                if (mouseIsDown)
+                    prevMousePos = relMousePosNormalised;
+            
+                if (Event.current.type == EventType.MouseUp)
+                    mouseIsDown = false;
+            }
 
             // Show buttons for changing the active plane
             if (spawnedPlanes.Length > 0)
             {
-                // SlicingPlane planeObj = spawnedPlanes[System.Math.Min(selectedPlaneIndex, spawnedPlanes.Length - 1)];
-
-                if (GUI.Button(new Rect(0.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "previous\nplane"))
+                GUI.Label(new Rect(0.0f, bgRect.y + bgRect.height + 20.0f, 450.0f, 20.0f), "Select a plane (previous / next).");
+                
+                if (GUI.Button(new Rect(0.0f, bgRect.y + bgRect.height + 40.0f, 70.0f, 20.0f), "<"))
                 {
-                    selectedPlaneIndex = (selectedPlaneIndex - 1) % spawnedPlanes.Length;
+                    selectedPlaneIndex = selectedPlaneIndex == 0 ? spawnedPlanes.Length - 1 : selectedPlaneIndex - 1;
                     Selection.activeGameObject = spawnedPlanes[selectedPlaneIndex].gameObject;
                 }
-                if (GUI.Button(new Rect(90.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "next\nplane"))
+                if (GUI.Button(new Rect(90.0f, bgRect.y + bgRect.height + 40.0f, 70.0f, 20.0f), ">"))
                 {
                     selectedPlaneIndex = (selectedPlaneIndex + 1) % spawnedPlanes.Length;
                     Selection.activeGameObject = spawnedPlanes[selectedPlaneIndex].gameObject;
@@ -127,222 +188,81 @@ namespace UnityVolumeRendering
             }
 
             // Show button for adding new plane
-            if (GUI.Button(new Rect(180.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "add\nplane"))
+            VolumeRenderedObject volRend = FindObjectOfType<VolumeRenderedObject>();
+            if (volRend != null)
             {
-                VolumeRenderedObject volRend = FindObjectOfType<VolumeRenderedObject>();
-                if (volRend != null)
+                if (GUI.Button(new Rect(200.0f, bgRect.y + bgRect.height + 0.0f, 120.0f, 20.0f), "Create XY plane"))
                 {
                     selectedPlaneIndex = spawnedPlanes.Length;
-                    volRend.CreateSlicingPlane();
+                    SlicingPlane plane = volRend.CreateSlicingPlane();
+                    UnityEditor.Selection.objects = new UnityEngine.Object[] { plane.gameObject };
+                }
+                else if (GUI.Button(new Rect(200.0f, bgRect.y + bgRect.height + 20.0f, 120.0f, 20.0f), "Create XZ plane"))
+                {
+                    selectedPlaneIndex = spawnedPlanes.Length;
+                    SlicingPlane plane = volRend.CreateSlicingPlane();
+                    plane.transform.localRotation = Quaternion.Euler(90.0f, 0.0f, 0.0f);
+                    UnityEditor.Selection.objects = new UnityEngine.Object[] { plane.gameObject };
+                }
+                else if (GUI.Button(new Rect(200.0f, bgRect.y + bgRect.height + 40.0f, 120.0f, 20.0f), "Create ZY plane"))
+                {
+                    selectedPlaneIndex = spawnedPlanes.Length;
+                    SlicingPlane plane = volRend.CreateSlicingPlane();
+                    plane.transform.localRotation = Quaternion.Euler(0.0f, 0.0f, 90.0f);
+                    UnityEditor.Selection.objects = new UnityEngine.Object[] { plane.gameObject };
                 }
             }
 
             // Show button for removing
-            if (spawnedPlanes.Length > 0 && GUI.Button(new Rect(270.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "remove\nplane"))
+            if (spawnedPlanes.Length > 0 && GUI.Button(new Rect(320.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "remove\nplane"))
             {
                 SlicingPlane planeToRemove = spawnedPlanes[selectedPlaneIndex];
                 GameObject.DestroyImmediate(planeToRemove.gameObject);
             }
 
-            // Show button for saving the plane
-            if (GUI.Button(new Rect(360.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "save\nplane"))
-            {
-                Vector3 pos = Selection.activeGameObject.transform.localPosition;
-                Vector3 rot = Selection.activeGameObject.transform.localEulerAngles;
-
-                string img_name = "plane" + (screenshotIndex) + ".png";
-
-                // Get screen position and sizes
-                var vec2Position = EditorWindow.focusedWindow.position.position;
-                var sizeX = bgRect.width;
-                var sizeY = bgRect.height;
-                // var sizeX = activeWindow.position.width;
-                // var sizeY = activeWindow.position.height;
-                var sizeX_plane = sizeX;
-                var sizeY_plane = sizeY - y_offset_down;
-
-                // Take Screenshot at given position sizes
-                var colors = InternalEditorUtility.ReadScreenPixel(new Vector2((vec2Position.x + x_offset_left), (vec2Position.y + y_offset_up)), (int)sizeX_plane, (int)sizeY_plane);
-				
-                // write result Color[] data into a temporal Texture2D
-                var result = new Texture2D((int)sizeX_plane, (int)sizeY_plane, TextureFormat.RGB24, false);
-                result.SetPixels(colors);
-
-                // encode the Texture2D to a PNG
-                // you might want to change this to JPG for way less file size but slightly worse quality
-                // if you do don't forget to also change the file extension below
-                var bytes = result.EncodeToPNG();
-                // In order to avoid bloading Texture2D into memory destroy it
-                DestroyImmediate(result);
-                // finally write the file e.g. to the StreamingAssets folder
-                System.IO.File.WriteAllBytes(Path.Combine(imagePath, img_name), bytes);
-                screenshotIndex++;
-                // Refresh the AssetsDatabase so the file actually appears in Unity
-                AssetDatabase.Refresh();
-                Debug.Log("New Screenshot taken");
-
-                string[] rowDataTemp = new string[7];
-                rowDataTemp[0] = img_name.ToString();
-                rowDataTemp[1] = pos.x.ToString();
-                rowDataTemp[2] = pos.y.ToString();
-                rowDataTemp[3] = pos.z.ToString();
-                rowDataTemp[4] = rot.x.ToString();
-                rowDataTemp[5] = rot.y.ToString();
-                rowDataTemp[6] = rot.z.ToString();
-                rowData.Add(rowDataTemp);
-
-                string[][] output = new string[rowData.Count][];
-
-                for(int i = 0; i < output.Length; i++)
-                {
-                    output[i] = rowData[i];
-                }
-
-                int length = output.GetLength(0);
-                string delimiter = ",";
-                StringBuilder sb = new StringBuilder();
-            
-                for (int index = 0; index < length; index++)
-                {
-                    sb.AppendLine(string.Join(delimiter, output[index]));
-                }
-
-                StreamWriter outStream = System.IO.File.CreateText(filePath);
-                outStream.WriteLine(sb);
-                outStream.Close();
-            }
-
             // Show hint
-            if (spawnedPlanes.Length > 0)
-                GUI.Label(new Rect(0.0f, bgRect.y + bgRect.height + 60.0f, 450.0f, 30.0f), "Move plane by left clicking in the above view and dragging the mouse,\n or simply move it in the object hierarchy.");
+            if (inputMode == InputMode.Move && spawnedPlanes.Length > 0)
+                GUI.Label(new Rect(0.0f, bgRect.y + bgRect.height + 70.0f, 450.0f, 30.0f), "Move plane by left clicking in the above view and dragging the mouse,\n or simply move it in the object hierarchy.");
+            else if (inputMode == InputMode.Inspect)
+                GUI.Label(new Rect(0.0f, bgRect.y + bgRect.height + 70.0f, 450.0f, 30.0f), "Click somewhere to display the data value at a location.");
+            else if (inputMode == InputMode.Measure)
+                GUI.Label(new Rect(0.0f, bgRect.y + bgRect.height + 70.0f, 450.0f, 30.0f), "Click and drag to measure the distance between two points.");
         }
-
 
         public void OnInspectorUpdate()
         {
             Repaint();
         }
-    
+
+        private Vector3 GetWorldPosition(Vector2 relativeMousePosition, SlicingPlane slicingPlane)
+        {
+            Vector3 planePoint = new Vector3(0.5f - relativeMousePosition.x, 0.0f, relativeMousePosition.y - 0.5f) * 10.0f;
+            return slicingPlane.transform.TransformPoint(planePoint);
+        }
+        
+        private Vector3 GetDataPosition(Vector2 relativeMousePosition, SlicingPlane slicingPlane)
+        {
+            Vector3 worldSpacePosition = GetWorldPosition(relativeMousePosition, slicingPlane);
+            Vector3 objSpacePoint = slicingPlane.targetObject.volumeContainerObject.transform.InverseTransformPoint(worldSpacePosition);
+            Vector3 uvw = objSpacePoint + Vector3.one * 0.5f;
+            VolumeDataset dataset = slicingPlane.targetObject.dataset;
+            return new Vector3(uvw.x * dataset.scale.x, uvw.y * dataset.scale.y, uvw.z * dataset.scale.z);
+        }
+
+        private float GetValueAtPosition(Vector2 relativeMousePosition, SlicingPlane slicingPlane)
+        {
+            Vector3 worldSpacePosition = GetWorldPosition(relativeMousePosition, slicingPlane);
+            Vector3 objSpacePoint = slicingPlane.targetObject.volumeContainerObject.transform.InverseTransformPoint(worldSpacePosition);
+            VolumeDataset dataset = slicingPlane.targetObject.dataset;
+            // Convert to texture coordinates.
+            Vector3 uvw = objSpacePoint + Vector3.one * 0.5f;
+            // Look up data value at current position.
+            Vector3Int index = new Vector3Int((int)(uvw.x * dataset.dimX), (int)(uvw.y * dataset.dimY), (int)(uvw.z * dataset.dimZ));
+            index.x = Mathf.Clamp(index.x, 0, dataset.dimX - 1);
+            index.y = Mathf.Clamp(index.y, 0, dataset.dimY - 1);
+            index.z = Mathf.Clamp(index.z, 0, dataset.dimZ - 1);
+            return dataset.GetData(index.x, index.y, index.z);
+        }
+
     }
 }
-
-// using UnityEngine;
-// using UnityEditor;
-
-// namespace UnityVolumeRendering
-// {
-//     public class SliceRenderingEditorWindow : EditorWindow
-//     {
-//         private int selectedPlaneIndex = -1;
-//         private bool handleMouseMovement = false;
-//         private Vector2 prevMousePos;
-
-//         public static void ShowWindow()
-//         {
-//             SliceRenderingEditorWindow wnd = new SliceRenderingEditorWindow();
-//             wnd.Show();
-//             wnd.SetInitialPosition();
-//         }
-
-//         private void SetInitialPosition()
-//         {
-//             Rect rect = this.position;
-//             rect.width = 800.0f;
-//             rect.height = 500.0f;
-//             this.position = rect;
-//         }
-
-//         private void OnFocus()
-//         {
-//             // set selected plane as active GameObject in Hierarchy
-//             SlicingPlane[] spawnedPlanes = FindObjectsOfType<SlicingPlane>();
-//             if (selectedPlaneIndex != -1 && spawnedPlanes.Length > 0)
-//             {
-//                 Selection.activeGameObject = spawnedPlanes[selectedPlaneIndex].gameObject;
-//             }
-//         }
-
-//         private void OnGUI()
-//         {
-//             SlicingPlane[] spawnedPlanes = FindObjectsOfType<SlicingPlane>();
-
-//             if (spawnedPlanes.Length > 0)
-//                 selectedPlaneIndex = selectedPlaneIndex % spawnedPlanes.Length;
-
-//             float bgWidth = Mathf.Min(this.position.width - 20.0f, (this.position.height - 50.0f) * 2.0f);
-//             Rect bgRect = new Rect(0.0f, 0.0f, bgWidth, bgWidth * 0.5f);
-//             if (selectedPlaneIndex != -1 && spawnedPlanes.Length > 0)
-//             {
-//                 SlicingPlane planeObj = spawnedPlanes[System.Math.Min(selectedPlaneIndex, spawnedPlanes.Length - 1)];
-//                 // Draw the slice view
-//                 Material mat = planeObj.GetComponent<MeshRenderer>().sharedMaterial;
-//                 Graphics.DrawTexture(bgRect, mat.GetTexture("_DataTex"), mat);
-
-
-
-//                 // Handle mouse click inside slice view (activates moving the plane with mouse)
-//                 if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && bgRect.Contains(new Vector2(Event.current.mousePosition.x, Event.current.mousePosition.y)))
-//                 {
-//                     handleMouseMovement = true;
-//                     prevMousePos = Event.current.mousePosition;
-//                 }
-
-//                 // Handle mouse movement (move the plane)
-//                 if (handleMouseMovement)
-//                 {
-//                     Vector2 mouseOffset = (Event.current.mousePosition - prevMousePos) / new Vector2(bgRect.width, bgRect.height);
-//                     if (Mathf.Abs(mouseOffset.y) > 0.00001f)
-//                     {
-//                         planeObj.transform.Translate(Vector3.up * mouseOffset.y);
-//                         prevMousePos = Event.current.mousePosition;
-//                     }
-//                 }
-//             }
-
-//             if (Event.current.type == EventType.MouseUp)
-//                 handleMouseMovement = false;
-
-//             // Show buttons for changing the active plane
-//             if (spawnedPlanes.Length > 0)
-//             {
-//                 if (GUI.Button(new Rect(0.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "previous\nplane"))
-//                 {
-//                     selectedPlaneIndex = (selectedPlaneIndex - 1) % spawnedPlanes.Length;
-//                     Selection.activeGameObject = spawnedPlanes[selectedPlaneIndex].gameObject;
-//                 }
-//                 if (GUI.Button(new Rect(90.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "next\nplane"))
-//                 {
-//                     selectedPlaneIndex = (selectedPlaneIndex + 1) % spawnedPlanes.Length;
-//                     Selection.activeGameObject = spawnedPlanes[selectedPlaneIndex].gameObject;
-//                 }
-//             }
-
-//             // Show button for adding new plane
-//             if (GUI.Button(new Rect(180.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "add\nplane"))
-//             {
-//                 VolumeRenderedObject volRend = FindObjectOfType<VolumeRenderedObject>();
-//                 if (volRend != null)
-//                 {
-//                     selectedPlaneIndex = spawnedPlanes.Length;
-//                     volRend.CreateSlicingPlane();
-//                 }
-//             }
-
-//             // Show button for removing
-//             if (spawnedPlanes.Length > 0 && GUI.Button(new Rect(270.0f, bgRect.y + bgRect.height + 20.0f, 70.0f, 30.0f), "remove\nplane"))
-//             {
-//                 SlicingPlane planeToRemove = spawnedPlanes[selectedPlaneIndex];
-//                 GameObject.DestroyImmediate(planeToRemove.gameObject);
-//             }
-
-//             // Show hint
-//             if (spawnedPlanes.Length > 0)
-//                 GUI.Label(new Rect(0.0f, bgRect.y + bgRect.height + 60.0f, 450.0f, 30.0f), "Move plane by left clicking in the above view and dragging the mouse,\n or simply move it in the object hierarchy.");
-//         }
-
-//         public void OnInspectorUpdate()
-//         {
-//             Repaint();
-//         }
-//     }
-// }

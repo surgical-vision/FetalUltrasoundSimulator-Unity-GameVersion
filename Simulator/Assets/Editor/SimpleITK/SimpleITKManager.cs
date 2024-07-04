@@ -21,15 +21,22 @@ namespace UnityVolumeRendering
 
         public static bool IsSITKEnabled()
         {
-            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
-            BuildTargetGroup group = BuildPipeline.GetBuildTargetGroup(target);
-
-            HashSet<string> defines = new HashSet<string>(PlayerSettings.GetScriptingDefineSymbolsForGroup(group).Split(';'));
+            HashSet<string> defines = new HashSet<string>(PlayerSettings.GetScriptingDefineSymbolsForGroup(BuildTargetGroup.Standalone).Split(';'));
             return defines.Contains(SimpleITKDefinition);
         }
 
         public static void EnableSITK(bool enable)
         {
+            BuildTarget activeTarget = EditorUserBuildSettings.activeBuildTarget;
+            BuildTargetGroup activeGroup = BuildPipeline.GetBuildTargetGroup(activeTarget);
+            if (enable && activeGroup != BuildTargetGroup.Standalone
+                && !EditorUtility.DisplayDialog("Build target does not support SimpleITK.",
+                $"SimpleITK is only supported in standalone builds and editor, and will not work on your selected build target ({activeTarget.ToString()}).\n"
+                + "Enable SimpleITK for standalone (Windows, Linux, MacOS) and editor?", "Yes", "No"))
+            {
+                return;
+            }
+
             if (!HasDownloadedBinaries())
             {
                 EditorUtility.DisplayDialog("Missing SimpleITK binaries", "You need to download the SimpleITK binaries before you can enable SimpleITK.", "Ok");
@@ -78,10 +85,16 @@ namespace UnityVolumeRendering
             // Downlaod binaries zip
             using (var client = new WebClient())
             {
-                string downloadURL = "https://sourceforge.net/projects/simpleitk/files/SimpleITK/1.2.4/CSharp/SimpleITK-1.2.4-CSharp-win64-x64.zip/download";
+#if UNITY_EDITOR_WIN
+                string downloadURL = "https://github.com/SimpleITK/SimpleITK/releases/download/v2.2.0/SimpleITK-2.2.0-CSharp-win64-x64.zip";
+#elif UNITY_EDITOR_LINUX
+                string downloadURL = "https://github.com/SimpleITK/SimpleITK/releases/download/v2.2.0/SimpleITK-2.2.0-CSharp-linux.zip";
+#else
+                string downloadURL = "https://github.com/SimpleITK/SimpleITK/releases/download/v2.2.0/SimpleITK-2.2.0-CSharp-macosx-10.9-anycpu.zip";
+#endif
                 client.DownloadFile(downloadURL, zipPath);
 
-                EditorUtility.DisplayProgressBar("Downloading SimpleITK", "Downloading SimpleITK binaries.", 70);
+                EditorUtility.DisplayProgressBar("Downloading SimpleITK", "Extracting SimpleITK.", 70);
 
                 if (!File.Exists(zipPath))
                 {
