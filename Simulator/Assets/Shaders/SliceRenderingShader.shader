@@ -23,12 +23,14 @@ Shader "VolumeRendering/SliceRenderingShader"
 
             struct appdata
             {
+                UNITY_VERTEX_INPUT_INSTANCE_ID
                 float4 vertex : POSITION;
                 float2 uv : TEXCOORD0;
             };
 
             struct v2f
             {
+                UNITY_VERTEX_OUTPUT_STEREO
                 float2 uv : TEXCOORD0;
                 float4 vertex : SV_POSITION;
                 float4 relVert : TEXCOORD1;
@@ -44,9 +46,14 @@ Shader "VolumeRendering/SliceRenderingShader"
             v2f vert (appdata v)
             {
                 v2f o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.vertex = UnityObjectToClipPos(v.vertex);
+                // Modified UV (because slicing plane has coodinates between 0 and 100, while the volue mas 0-1)
+                // TODO: Create a different slice mesh!
+                float2 uvMod = float2((0.5f - v.uv.x) * 10.0f, (0.5f - v.uv.y) * 10.0f);
                 // Calculate plane vertex world position.
-                float3 vert = mul(_planeMat, float4(0.5f -v.uv.x, 0.0f, 0.5f -v.uv.y, 1.0f));
+                float3 vert = mul(_planeMat, float4(uvMod.x, 0.0f, uvMod.y, 1.0f));
                 // Convert from world space to volume space.
                 o.relVert = mul(_parentInverseMat, float4(vert, 1.0f));
                 o.uv = v.uv;

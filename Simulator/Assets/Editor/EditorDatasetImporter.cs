@@ -7,8 +7,10 @@ using UnityEngine;
 
 namespace UnityVolumeRendering
 {
+    [System.Obsolete("This will be removed. Use ImporterFactory and VolumeObjectFactory instead.")]
     public class EditorDatasetImporter
     {
+        [System.Obsolete("This will be removed. Use ImporterFactory and VolumeObjectFactory instead.")]
         public static void ImportDataset(string filePath)
         {
             DatasetType datasetType = DatasetImporterUtility.GetDatasetType(filePath);
@@ -20,7 +22,8 @@ namespace UnityVolumeRendering
                         if (wnd != null)
                             wnd.Close();
 
-                        wnd = new RAWDatasetImporterEditorWindow(filePath);
+                        wnd = EditorWindow.CreateInstance<RAWDatasetImporterEditorWindow>();
+                        wnd.Initialise(filePath);
                         wnd.Show();
                         break;
                     }
@@ -47,7 +50,7 @@ namespace UnityVolumeRendering
                         foreach (IImageSequenceSeries series in seriesList)
                         {
                             // Only import the series that contains the selected file
-                            if (series.GetFiles().Any(f => Path.GetFileName(f.GetFilePath()) == Path.GetFileName(filePath)))
+                            if(series.GetFiles().Any(f => Path.GetFileName(f.GetFilePath()) == Path.GetFileName(filePath)))
                             {
                                 VolumeDataset dataset = importer.ImportSeries(series);
 

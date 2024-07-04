@@ -15,7 +15,7 @@ namespace UnityVolumeRendering
         private Texture2D texture = null;
         private Color[] tfCols;
 
-        private const int TEXTURE_WIDTH = 512;
+        private const int TEXTURE_WIDTH = 1024;
         private const int TEXTURE_HEIGHT = 2;
 
         public void AddControlPoint(TFColourControlPoint ctrlPoint)
@@ -81,21 +81,27 @@ namespace UnityVolumeRendering
                 float tCol = (Mathf.Clamp(t, leftCol.dataValue, rightCol.dataValue) - leftCol.dataValue) / (rightCol.dataValue - leftCol.dataValue);
                 float tAlpha = (Mathf.Clamp(t, leftAlpha.dataValue, rightAlpha.dataValue) - leftAlpha.dataValue) / (rightAlpha.dataValue - leftAlpha.dataValue);
 
-                // tCol = Mathf.SmoothStep(0.0f, 1.0f, tCol);
-                // tAlpha = Mathf.SmoothStep(0.0f, 1.0f, tAlpha);
+                tCol = Mathf.SmoothStep(0.0f, 1.0f, tCol);
+                tAlpha = Mathf.SmoothStep(0.0f, 1.0f, tAlpha);
 
                 Color pixCol = rightCol.colourValue * tCol + leftCol.colourValue * (1.0f - tCol);
                 pixCol.a = rightAlpha.alphaValue * tAlpha + leftAlpha.alphaValue * (1.0f - tAlpha);
 
                 for (int iY = 0; iY < TEXTURE_HEIGHT; iY++)
                 {
-                    tfCols[iX + iY * TEXTURE_WIDTH] = pixCol;
+                    tfCols[iX + iY * TEXTURE_WIDTH] = QualitySettings.activeColorSpace == ColorSpace.Linear ? pixCol.linear : pixCol;
                 }
             }
 
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.SetPixels(tfCols);
             texture.Apply();
+        }
+
+        public Color GetColour(float x)
+        {
+            int index = Mathf.RoundToInt(x * TEXTURE_WIDTH);
+            return tfCols[index];
         }
 
         private void CreateTexture()

@@ -3,8 +3,8 @@ using UnityEngine;
 using System;
 using itk.simple;
 using System.Runtime.InteropServices;
-using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace UnityVolumeRendering
 {
@@ -15,43 +15,70 @@ namespace UnityVolumeRendering
     {
         public VolumeDataset Import(string filePath)
         {
+            float[] pixelData = null;
+            VectorUInt32 size = null;
+            VectorDouble spacing = null;
+
+            VolumeDataset volumeDataset = ScriptableObject.CreateInstance<VolumeDataset>();
+
+            ImportInternal(volumeDataset, pixelData, size, spacing, filePath);
+
+            return volumeDataset;
+        }
+        public async Task<VolumeDataset> ImportAsync(string filePath)
+        {
+            float[] pixelData = null;
+            VectorUInt32 size = null;
+            VectorDouble spacing = null;
+
+            // Create dataset
+            VolumeDataset volumeDataset = ScriptableObject.CreateInstance<VolumeDataset>();
+
+            await Task.Run(() => ImportInternal(volumeDataset,pixelData,size,spacing,filePath));
+
+            return volumeDataset;
+        }
+
+        private void ImportInternal(VolumeDataset volumeDataset, float[] pixelData, VectorUInt32 size, VectorDouble spacing,string filePath)
+        {
             ImageFileReader reader = new ImageFileReader();
 
             reader.SetFileName(filePath);
 
             Image image = reader.Execute();
 
+            // Convert to Unity's coordinate system (Right, Superior, Anterior)
+            image = SimpleITK.DICOMOrient(image, "RSA");
+
             // Cast to 32-bit float
             image = SimpleITK.Cast(image, PixelIDValueEnum.sitkFloat32);
 
-            VectorUInt32 size = image.GetSize();
+            size = image.GetSize();
 
             int numPixels = 1;
             for (int dim = 0; dim < image.GetDimension(); dim++)
                 numPixels *= (int)size[dim];
 
             // Read pixel data
-            float[] pixelData = new float[numPixels];
+            pixelData = new float[numPixels];
             IntPtr imgBuffer = image.GetBufferAsFloat();
             Marshal.Copy(imgBuffer, pixelData, 0, numPixels);
 
-            VectorDouble spacing = image.GetSpacing();
+            spacing = image.GetSpacing();
 
-            // Create dataset
-            VolumeDataset volumeDataset = new VolumeDataset();
             volumeDataset.data = pixelData;
             volumeDataset.dimX = (int)size[0];
             volumeDataset.dimY = (int)size[1];
             volumeDataset.dimZ = (int)size[2];
-            volumeDataset.datasetName = "test";
+            volumeDataset.datasetName = Path.GetFileName(filePath);
             volumeDataset.filePath = filePath;
-            volumeDataset.scaleX = (float)(spacing[0] * size[0]);
-            volumeDataset.scaleY = (float)(spacing[1] * size[1]);
-            volumeDataset.scaleZ = (float)(spacing[2] * size[2]);
+            volumeDataset.scale = new Vector3(
+                (float)(spacing[0] * size[0]) / 1000.0f, // mm to m
+                (float)(spacing[1] * size[1]) / 1000.0f, // mm to m
+                (float)(spacing[2] * size[2]) / 1000.0f // mm to m
+            );
 
             volumeDataset.FixDimensions();
-
-            return volumeDataset;
         }
     }
 }

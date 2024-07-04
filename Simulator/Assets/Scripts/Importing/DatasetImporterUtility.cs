@@ -32,7 +32,7 @@ namespace UnityVolumeRendering
 
             else if (extension == ".dat" || extension == ".raw" || extension == ".vol")
                 datasetType = DatasetType.Raw;
-
+            
             else if (extension == ".ini")
             {
                 filePath = filePath.Substring(0, filePath.LastIndexOf("."));
@@ -42,23 +42,23 @@ namespace UnityVolumeRendering
             {
                 datasetType = DatasetType.DICOM;
             }
-            else if (extension == ".nrrd")
+            else if(extension == ".nrrd")
             {
                 datasetType = DatasetType.NRRD;
             }
-            else if (extension == ".nii")
+            else if(extension == ".nii")
             {
                 datasetType = DatasetType.NIFTI;
             }
-            else if (extension == ".jpg" || extension == ".jpeg" || extension == ".png")
+            else if(extension == ".jpg" || extension == ".jpeg" || extension == ".png")
             {
                 datasetType = DatasetType.ImageSequence;
             }
-            else
+            else 
             {
                 datasetType = DatasetType.Unknown;
             }
-
+        
             return datasetType;
         }
     }

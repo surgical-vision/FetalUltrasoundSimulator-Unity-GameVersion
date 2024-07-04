@@ -60,11 +60,11 @@ namespace UnityVolumeRendering
                 // Slice Rotation
                 GUILayout.Label("Rotation");
                 //GUILayout.Label("x:");
-                rotation.x = GUILayout.HorizontalSlider(rotation.x, 90.0f, 0.0f);
+                rotation.x = GUILayout.HorizontalSlider(rotation.x, 0.0f, 360.0f);
                 //GUILayout.Label("y:");
-                rotation.y = GUILayout.HorizontalSlider(rotation.y, 90.0f, -90.0f);
+                rotation.y = GUILayout.HorizontalSlider(rotation.y, 0.0f, 360.0f);
                 //GUILayout.Label("z:");
-                rotation.z = GUILayout.HorizontalSlider(rotation.z, 180.0f, 270.0f);
+                rotation.z = GUILayout.HorizontalSlider(rotation.z, 0.0f, 360.0f);
                 slicingPlane.transform.rotation = Quaternion.Euler(rotation);
 
                 // Slice Translation
@@ -72,30 +72,10 @@ namespace UnityVolumeRendering
                 //GUILayout.Label("x:");
                 position.x = GUILayout.HorizontalSlider(position.x, -0.5f, 0.5f);
                 //GUILayout.Label("y:");
-                position.y = GUILayout.HorizontalSlider(position.y, 0.5f, -0.5f);
+                position.y = GUILayout.HorizontalSlider(position.y, -0.5f, 0.5f);
                 //GUILayout.Label("z:");
-                position.z = GUILayout.HorizontalSlider(position.z, 0.5f, -0.5f);
+                position.z = GUILayout.HorizontalSlider(position.z, -0.5f, 0.5f);
                 slicingPlane.transform.position = position;
-
-                // // Slice Rotation
-                // GUILayout.Label("Rotation");
-                // //GUILayout.Label("x:");
-                // rotation.x = GUILayout.HorizontalSlider(rotation.x, 0.0f, 360.0f);
-                // //GUILayout.Label("y:");
-                // rotation.y = GUILayout.HorizontalSlider(rotation.y, 0.0f, 360.0f);
-                // //GUILayout.Label("z:");
-                // rotation.z = GUILayout.HorizontalSlider(rotation.z, 0.0f, 360.0f);
-                // slicingPlane.transform.rotation = Quaternion.Euler(rotation);
-
-                // // Slice Translation
-                // GUILayout.Label("Translation");
-                // //GUILayout.Label("x:");
-                // position.x = GUILayout.HorizontalSlider(position.x, -0.5f, 0.5f);
-                // //GUILayout.Label("y:");
-                // position.y = GUILayout.HorizontalSlider(position.y, -0.5f, 0.5f);
-                // //GUILayout.Label("z:");
-                // position.z = GUILayout.HorizontalSlider(position.z, -0.5f, 0.5f);
-                // slicingPlane.transform.position = position;
             }
 
             GUILayout.FlexibleSpace();
