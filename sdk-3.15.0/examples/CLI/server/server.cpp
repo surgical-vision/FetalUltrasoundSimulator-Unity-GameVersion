@@ -20,45 +20,81 @@ using namespace Eigen;
 #include "drdc.h"
 
 #include <iostream>
-#include <fstream>
+
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
+
+
+#include <fstream>
+#include <vector>
+#include <cmath>
+#include <Eigen/Dense>
+
 
 #pragma comment(lib, "Ws2_32.lib")
 
 #define REFRESH_INTERVAL  0.1   // sec
 
-#define KP    100.0
-#define KVP    10.0
-#define MAXF    4.0
-#define KR      0.3
+#define KP    55.0 // ORIGINALLY 100.0
+#define KVP     30.0 // ORIGINALLY 10.0
+#define MAXF    100.0 // ORIGINALLY 4.0
+#define KR      0.05 // ORIGINALY 0.3
 #define KWR     0.02
 #define MAXT    0.1
-#define KG    100.0
+#define KG    10.0 // ORIGINIALLY 100.0
 #define KVG     5.0
 #define MAXG    1.0
 
+float maximumdistance = 0;
+
 extern "C" __declspec(dllexport) void SetInitPos()
 {
-    double rightPose[DHD_MAX_DOF] = { 0.0537, 0.0493, 0.0299,  // translation
-                                     0.0365, 2.1492, 0.0139,  // rotation (joint angles)
-                                     0.0 };          // gripper
-
-    double nullPose[DHD_MAX_DOF] = { -0.115565, -0.06869, -0.0776301,  // translation
+    double rightPose[DHD_MAX_DOF] = { -0.45, 0.1 ,  0.5,  // translation 0.01 0.01 -0.01
                                      0.0, 0.0, 0.0,  // rotation (joint angles)
                                      0.0 };          // gripper
 
+    double nullPose[DHD_MAX_DOF] = { 0.018, 0.0184, -0.0187,  // translation
+                                    0.15, 0.7, 1.5,  // rotation (joint angles)
+                                    0.0 };          // gripper
+    // 0.0537, 0.0493, 0.0299,  // translation rightPose original
+    // -0.115565, -0.06869, -0.0776301,  // translation nullPose original
+
+    // -0.0330, 0.0334, -0.0337,  // translation rightPose and nullPose initial edit
+
+    // 0.0365, 2.1492, 0.0139,  // rotation (joint angles) original
+    
+
     int iResult = drdMoveTo(nullPose);
     if (iResult < 0)
-    {
+        {
         std::cout << "failed to set initial position: " << dhdErrorGetLastStr() << std::endl;
     }
     std::cout << "Move to Pose: " << iResult << std::endl;
 }
 
+
+std::vector<float> distances;
+
 extern "C" __declspec(dllexport) void ForceFeedback(float dist)
 {
+    distances.push_back(dist);
+    float deltaDistance = 0;
+
+    // Check if there is a significant change in distance
+    if (distances.size() > 1)
+    {
+        float previousDist = distances[distances.size() - 2];
+        if (std::abs(dist - previousDist) > 0.1)
+        {
+            std::cout << "Alert: Significant change in distance detected!" << std::endl;
+            std::cout << dist - previousDist << std::endl;
+            deltaDistance = dist - previousDist;
+        }
+    }
+
+
+
     double p[DHD_MAX_DOF];
     double r[3][3];
 
@@ -89,7 +125,11 @@ extern "C" __declspec(dllexport) void ForceFeedback(float dist)
     center(2, 2) = 0.998804;
 
     // object properties
-    double Stiffness = 100.0;
+
+
+    double Stiffness = 50.0; // ORIGINALLY 100.0
+
+
     Vector3d dir = { 0.0, 0.0, 1.0 };
 
     /*Vector3d hapticPos = { p[0], p[1], p[2] };
@@ -107,8 +147,9 @@ extern "C" __declspec(dllexport) void ForceFeedback(float dist)
         &(v[3]), &(v[4]), &(v[5]),
         &(v[6]));
 
+
     // compute base centering force
-    force = -KP * position;
+    force = -KP * position * 1.15;
 
     // compute wrist centering torque
     AngleAxisd deltaRotation(rotation.transpose() * center);
@@ -132,17 +173,58 @@ extern "C" __declspec(dllexport) void ForceFeedback(float dist)
     torque -= KWR * velrot;
     f[6] -= KVG * v[6];
     
-    Vector3d hapticForce = dist * Stiffness * dir;
+    // Vector3d hapticForce = dist * Stiffness * dir;
+
+    int counterForce = 0;
+
+    //change if breaks
+    Vector3d hapticForce;
+    if (dist > 0.16 & counterForce == 0) {
+        
+        float factor = pow(dist, 2) * 900 + dist * -281.5 + 23;
+        counterForce = 10;
+        hapticForce = dist * Stiffness * dir * factor;
+    }
+    else if (deltaDistance < -0.09) {
+        hapticForce = - 0.1 * Stiffness * dir * 10;
+    }
+    else {
+        
+        hapticForce = dist * Stiffness * dir;
+        counterForce -= 1;
+    }
+    double targetX = -0.0008;
+    double currentX = p[0];
+    double forceX = 80 * (targetX - currentX) + 2; 
+    f[0] += forceX;
+    
+    //std::cout << "Position coordinates: (" << position[0] << ", " << position[1] << ", " << position[2] << ")" << std::endl;
 
     //int iResult = dhdSetForceAndGripperForce(hapticForce(0), hapticForce(1), hapticForce(2), 0.0);
 
     int iResult = drdSetForceAndTorqueAndGripperForce(hapticForce(0) + f[0], hapticForce(1) + f[1], hapticForce(2) + f[2],  // force
                                                       f[3], f[4], f[5],  // torque
                                                       0.0);           // gripper force
+
+    std::ofstream outFile("forces.txt", std::ios::app);
+    if (outFile.is_open())
+    {
+        outFile << hapticForce(0) +f[0]<< " " << hapticForce(1) +f[1] << " " << hapticForce(2) + f[2] << std::endl;
+
+        outFile << f[3] << " " << f[4] << " " << f[5] << std::endl;
+        outFile << f[6] << std::endl;
+        outFile.close();
+    }
+    else
+    {
+        std::cerr << "Unable to open file for writing" << std::endl;
+    }
     if (iResult < 0)
     {
         std::cout << "failed to set haptic feedback: " << dhdErrorGetLastStr() << std::endl;
     }
+    
+
 }
 
 extern "C" __declspec(dllexport) void fixedPosition(bool isLock)
