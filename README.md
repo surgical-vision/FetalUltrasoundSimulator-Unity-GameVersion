@@ -10,4 +10,4 @@ Server Application:
 
 ## Project Demo:
 
-[Watch the demo](https://github.com/surgical-vision/FetalUltrasoundSimulator-Unity-GameVersion/releases/tag/v1.0.0)
+[![Watch the demo](assets/demo.png)(https://github.com/surgical-vision/FetalUltrasoundSimulator-Unity-GameVersion/releases/tag/v1.0.0)]
