@@ -10,4 +10,4 @@ Server Application:
 
 ## Project Demo:
 
-TO DO: Add video here
+![Watch the demo](assets/demo.mp4)
