@@ -25,6 +25,7 @@ Simulator/results
 Simulator/ml-agents
 Simulator/venv
 Simulator/code/__pycache__
+sdk-3.15.0/examples/CLI/.vs
 *.txt
 
 # Visual Studio cache directory
