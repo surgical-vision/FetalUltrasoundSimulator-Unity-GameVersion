@@ -10,4 +10,4 @@ Server Application:
 
 ## Project Demo:
 
-![Watch the demo](assets/demo.mp4)
+[![Watch the demo](assets/demo.png)](assets/demo.mp4)
