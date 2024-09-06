@@ -179,7 +179,7 @@ extern "C" __declspec(dllexport) void ForceFeedback(float dist)
 
     //change if breaks
     Vector3d hapticForce;
-    if (dist > 0.16 & counterForce == 0) {
+    if (counterForce == 0 & dist > 0.16) {
         
         float factor = pow(dist, 2) * 900 + dist * -281.5 + 23;
         counterForce = 10;

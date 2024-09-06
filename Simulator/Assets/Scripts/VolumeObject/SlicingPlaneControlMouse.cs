@@ -45,8 +45,8 @@ namespace UnityVolumeRendering
 	        if (Input.GetMouseButtonDown(1))
 	        {
 	            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-	            RaycastHit hit;
-	            if (slicingPlane.GetComponent<Collider>().Raycast(ray, out hit, float.PositiveInfinity)) 
+	            UnityEngine.RaycastHit hit; // made more explicity CHANGE IF BROKEN
+                if (slicingPlane.GetComponent<Collider>().Raycast(ray, out hit, float.PositiveInfinity)) 
 	                slicingPlane.transform.position = hit.point;
 	        }
 	        if (Input.GetMouseButton(1)) 
@@ -62,7 +62,7 @@ namespace UnityVolumeRendering
             if (Input.GetMouseButtonDown(0)) 
             {
                 Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-                RaycastHit hit;
+                UnityEngine.RaycastHit hit; // made more explicity CHANGE IF BROKEN
                 if (slicingPlane.GetComponent<Collider>().Raycast(ray, out hit, float.PositiveInfinity))
                     dragMode = true;
             }

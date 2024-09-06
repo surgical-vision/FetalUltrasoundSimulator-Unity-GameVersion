@@ -10,7 +10,7 @@ public class SocketClient : MonoBehaviour
     private Thread clientThread;
     private TcpClient tcpClient;
     private bool isConnected = false;
-    private float scale = 20.0f;
+    private float scale = 15f; // originally 20.0f
     private Vector3 pos_vect, rot_vect;
 
     private float getZ;
@@ -24,6 +24,17 @@ public class SocketClient : MonoBehaviour
 
     // Define a concurrent queue to store received pose values
     private ConcurrentQueue<(Vector3 position, Vector3 rotation)> poseQueue = new ConcurrentQueue<(Vector3, Vector3)>();
+
+
+    // below is all additional things
+    private Vector3 lastPosition;
+    private Vector3 lastRotation;
+    private float smoothingFactor = 1f;
+
+    private bool inStartupPhase = true;
+    private float startupDuration = 2.0f;
+    private float startupTimer = 0.0f;
+    private Vector3 safePosition = new Vector3(1, 1, 1);
 
 
     // Use this for initialization
@@ -108,12 +119,32 @@ public class SocketClient : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        // Check if there are any pose values in the queue
+        // additional stuff here
+        //if (inStartupPhase)
+        //{
+          //  startupTimer += Time.deltaTime;
+            //if (startupTimer < startupDuration)
+        //    {
+          //      transform.localPosition = Vector3.Lerp(transform.localPosition, safePosition, Time.deltaTime / startupDuration);
+            //}
+           // else
+           // {inStartupPhase = false;} return;
+
+
+        //}
+        // // Check if there are any pose values in the queue
         if (poseQueue.TryDequeue(out (Vector3 position, Vector3 rotation) pose))
         {
             // Update the GameObject's position and rotation with the received pose values
             transform.localPosition = pose.position;
             transform.localRotation = Quaternion.Euler(pose.rotation);
+            // above code was removed, below code added
+
+            //transform.localPosition = Vector3.Lerp(lastPosition, pose.position, smoothingFactor);
+            //transform.localRotation = Quaternion.Slerp(Quaternion.Euler(lastRotation), Quaternion.Euler(pose.rotation), smoothingFactor);
+
+            //lastPosition = transform.localPosition;
+            //lastRotation = transform.localRotation.eulerAngles;
         }
 
         if (message)
@@ -121,13 +152,17 @@ public class SocketClient : MonoBehaviour
             SendData(1000);
             message = false;
         }
-
-        if (touchBelly)
-        {
+        // additional stuff here
+        // if (touchBelly && transform.localPosition.z < posBelly)
+        // {
+        //    transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, posBelly);
+        //}
+        //if (touchBelly)
+        //{
             //transform.GetComponent<Rigidbody>().velocity = new Vector3(0f, 0f, 0f);
             //posBelly = transform.localPosition.z;
             //SendData((float)0.08);
-        }
+        //}
     }
 
     void FixedUpdate()
@@ -158,13 +193,35 @@ public class SocketClient : MonoBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
+        // below was originally removed
         //touchBelly = true;
         //posBelly = transform.localPosition.z;
+
+        //ALL of below is completely new, so delete if necessary
+        //if (collision.gameObject.CompareTag("Belly") && !inStartupPhase)
+       // {touchBelly = true; posBelly = transform.localPosition.z; Rigidbody rb = GetComponent<Rigidbody>();
+           // if (rb != null)
+           // {
+            //    Vector3 collisionNormal = collision.contacts[0].normal;
+            //    Vector3 incomingVelocity = rb.velocity;
+            //    Vector3 reboundVelocity = Vector3.Reflect(incomingVelocity, collisionNormal);
+            //    rb.velocity = reboundVelocity * 0.5f;
+            //}
+
+        //}
     }
 
     private void OnCollisionExit(Collision collision)
     {
+        // originally below was removed
         //touchBelly = false;
+
+
+        // below is new and should be deleted if doesn't work
+        //if (collision.gameObject.CompareTag("Belly") && !inStartupPhase)
+        //{
+          //  touchBelly = false;
+       // }
     }
 
     // Send haptic feedback to the server

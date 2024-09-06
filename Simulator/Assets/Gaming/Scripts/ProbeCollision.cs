@@ -1,32 +1,41 @@
 using System.Collections;
+
 using System.Collections.Generic;
+
 using UnityEngine;
+
+ 
 
 public class ProbeCollision : MonoBehaviour
 {
+    public float force = 1f;
     public float collisionThreshold;
-
     private SocketClient socket;
+    public float forceOffset = 0.1f;
 
-    // Start is called before the first frame update
     void Start()
     {
         socket = GameObject.FindGameObjectWithTag("Client").GetComponent<SocketClient>();
     }
 
-    // Update is called once per frame
     void Update()
+    {
+        CheckCollision();
+    }
+
+
+    void CheckCollision()
     {
         Vector3 rayOrigin = transform.position;
         // set offset from the origin point
-        rayOrigin.y += 0.08f;
+        rayOrigin.y += 0.08f;   // originally 0.08
         rayOrigin.z += 0.05f;
         //collisionThreshold = (transform.localScale.y / 2f) + (float)0.01;
 
-        RaycastHit hit;
+        RaycastHit hit; // made more explicit CHANGE IF BROKEN
         Ray landingRay = new Ray(rayOrigin, -transform.forward);
 
-        Debug.DrawRay(rayOrigin, -transform.forward * collisionThreshold);
+        Debug.DrawRay(rayOrigin, -transform.forward * collisionThreshold, Color.red);
 
         if (Physics.Raycast(landingRay, out hit, collisionThreshold))
         {
@@ -36,7 +45,7 @@ public class ProbeCollision : MonoBehaviour
                 float hapticDist = (collisionThreshold - hit.distance);
                 socket.SendData(hapticDist);
                 socket.touchBelly = true;
-                Debug.Log("dist = " + hapticDist);
+                //Debug.Log("dist = " + hapticDist);
             }
             else
             {
@@ -47,6 +56,9 @@ public class ProbeCollision : MonoBehaviour
         {
             socket.SendData(0);
             socket.touchBelly = false;
+
         }
+
     }
+
 }

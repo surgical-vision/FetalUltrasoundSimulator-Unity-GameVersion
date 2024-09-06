@@ -46,7 +46,7 @@ namespace UnityVolumeRendering
             if (Input.GetButtonDown("Fire2"))
             {
                 Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-                RaycastHit hit;
+                UnityEngine.RaycastHit hit; // made more explicity CHANGE IF BROKEN
                 if (gameObject.GetComponent<Collider>().Raycast(ray, out hit, float.PositiveInfinity)) 
                     this.transform.position = hit.point;
             }
@@ -63,7 +63,7 @@ namespace UnityVolumeRendering
             if (!dragMode && Input.GetButtonDown("Fire1")) 
             {
                 Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-                RaycastHit hit;
+                UnityEngine.RaycastHit hit; // made more explicity CHANGE IF BROKEN
                 if (this.GetComponent<Collider>().Raycast(ray, out hit, float.PositiveInfinity))
                     dragMode = true;
             }
