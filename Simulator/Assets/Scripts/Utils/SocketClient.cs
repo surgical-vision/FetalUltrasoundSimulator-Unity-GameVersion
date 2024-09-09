@@ -261,6 +261,36 @@ public class SocketClient : MonoBehaviour
             Debug.LogError($"Error connecting to server: {e.Message}");
         }
     }
+    
+    // Method to send the force vector to the haptic device. This method will convert the Vector3 force direction into a format suitable for transmission (e.g., a string or an array of bytes).
+    public void SendDirectionalForce(Vector3 force)
+    {
+        if (tcpClient == null || !tcpClient.Connected)
+        {
+            Debug.LogError("No connection to the server.");
+            return;
+        }
+
+        try
+        {
+            NetworkStream stream = tcpClient.GetStream();
+            if (stream.CanWrite)
+            {
+                // Convert the force vector to a string or binary format for transmission
+                string forceMessage = $"{force.x},{force.y},{force.z}";
+                byte[] arrByte = System.Text.Encoding.ASCII.GetBytes(forceMessage);
+
+                // Send the directional force to the server/haptic device
+                stream.Write(arrByte, 0, arrByte.Length);
+                Debug.Log($"Sent directional force: {forceMessage}");
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Error sending directional force to server: {e.Message}");
+        }
+    }
+
 }
 
 // // Sornsiri's version

@@ -39,6 +39,13 @@ public class LogicScript : MonoBehaviour
     // Reference to SocketClient component, which is handling external communication to the haptic device
     private SocketClient socket;
 
+    // Reference to the UI Toggle component for guidance
+    public Toggle guidanceToggle;
+    public Button startButton;
+
+    // Game state variable
+    private bool gameStarted = false;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -48,11 +55,39 @@ public class LogicScript : MonoBehaviour
         //writer = new StreamWriter(Application.dataPath + "/Gaming/Experiments/stiffness_50.csv");
         //writer.WriteLine("Final Score" + "," + "x" + "," + "y" + "," + "z" + "," + "belly" + "," + "Time");
         //writer.WriteLine("Final Score" + "," + "Translation Score" + "," + "Rotation Score" + "," + "Translation" + "," + "Rotation");
+
+        // Find the Toggle if not set via the Inspector
+        if (guidanceToggle == null)
+        {
+            guidanceToggle = GameObject.Find("GuidanceToggle").GetComponent<Toggle>();
+        }
+
+        // Ensure the start button is assigned and set up the listener
+        if (startButton == null)
+        {
+            startButton = GameObject.Find("StartButton").GetComponent<Button>();
+        }
+
+        // Disable game logic until the "Start Game" button is clicked
+        startButton.onClick.AddListener(StartGame);
+        DisableGame();
+    }
+
+    // Called when "Start Game" button is pressed
+    void StartGame()
+    {
+        gameStarted = true;
+        EnableGame();
+        // Hide the start button once the game starts
+        startButton.gameObject.SetActive(false); 
     }
 
     // Update is called once per frame
     void Update()
     {
+        // Do not run the game logic unless the game has started
+        if (!gameStarted) return; 
+
         // show distance to target plane (center point) - relative position between the currentPlane and the targetPlane
         ShowPosition();
 
@@ -79,26 +114,46 @@ public class LogicScript : MonoBehaviour
             targetComplete = true;
         }
     }
+    
+    // Disable game logic and control
+    private void DisableGame()
+    {
+        // Optionally disable player movement, controls, or anything else
+        // Example: Disable the player's plane
+        currentPlane.SetActive(false); 
+        // Hide the timer until the game starts
+        timerText.gameObject.SetActive(false); 
+    }
+
+    // Enable game logic and control
+    private void EnableGame()
+    {
+        // Re-enable the player's plane
+        currentPlane.SetActive(true);  
+        // Show the timer when the game starts
+        timerText.gameObject.SetActive(true); 
+    }
 
     // The following function calculates the player's score by considering both the translation (position difference) and rotation (orientation difference) between the current and target planes.
     private double ComputeScore(GameObject P, GameObject T)
     {
-        //Vector3 boundaryCentroid = new Vector3((float)0.9, (float)-0.6, (float)-2.6);
+        // Vector3 boundaryCentroid = new Vector3((float)0.9, (float)-0.6, (float)-2.6);
 
         // calculate translation and rotation from target plane
-        //double deltaTranslation = Vector3.Distance(Vector3.Normalize(P.transform.position), Vector3.Normalize(T.transform.position));
+        // double deltaTranslation = Vector3.Distance(Vector3.Normalize(P.transform.position), Vector3.Normalize(T.transform.position));
 
         // positional distance between the two planes
         double deltaTranslation = Vector3.Distance(P.transform.position, T.transform.position);
         // rotational difference
         double deltaRotation = ComputeRotation(P, T);
 
+        // Limit the translation distance to avoid extreme values
         if (deltaTranslation > 0.6)
         {
             deltaTranslation = 0.6;
         }
 
-        // calculate current score and score normalization
+        // Calculate the current score and score normalization
         // The position and rotation differences are normalized to a scale, with larger values being penalized (values exceeding a limit are clamped)
         double scoreTranslation = NormalizeData(deltaTranslation, 0, 0.6);
         double scoreRotation = NormalizeData(deltaRotation, 0, 90);
@@ -109,6 +164,7 @@ public class LogicScript : MonoBehaviour
         //Debug.Log("Rotation Score: " + scoreRotation);
 
         double posTranslation = NormalizeData(deltaTranslation, 0.6, 0);
+        
         if (P.transform.position.z > -2.6)
         {
             posTranslation = -posTranslation;
@@ -124,14 +180,27 @@ public class LogicScript : MonoBehaviour
             rotRotation = -rotRotation;
         }
 
-        //Debug.DrawRay(P.transform.position, P.transform.up * 3);
+        // Application of a fixed-intensity force in the direction of the targetPlane, guiding the user towards it. The force is computed at every frame and sent to the haptic device through the SocketClient, helping the user align the planes effectively.
+        // 1. Normalize the direction vector (optional): this ensures the direction vector has a length of 1 so that it purely represents the direction. You can omit this step if the haptic system doesn't need normalized direction vectors.
+        // If the checkbox is flagged (i.e., guidanceToggle.isOn == true), the code sends the directional force to guide the player. Otherwise, the game runs without guidance.
+        if (guidanceToggle.isOn)
+        {
+            targetDirection = targetDirection.normalized;
+            // 2. Apply a fixed constant force magnitude: the force magnitude remains constant and is multiplied by the direction vector to compute the final forceToApply. This value can be adjusted depending on how strong we want the guidance to be.
+            float fixedForceMagnitude = 0.5f;
+            // 3. Calculate the force vector by multiplying the normalized direction with the fixed magnitude
+            Vector3 forceToApply = targetDirection * fixedForceMagnitude;
+            // 4. Send the directional force to the haptic device: the calculated force vector (forceToApply) is sent to the haptic device
+            socket.SendDirectionalForce(forceToApply);
+        }
+
+        // Debug.DrawRay(P.transform.position, P.transform.up * 3);
 
         // If writeCSV is true, the score and plane positions are written to a CSV file at every frame
         if (writeCSV)
         {
             timeCSV += Time.deltaTime;
             writer.WriteLine(scoreToDisplay.ToString() + "," + P.transform.position.x.ToString() + "," + P.transform.position.y.ToString() + "," + P.transform.position.z.ToString() + "," + hitPoint.ToString() + ","+ timeCSV.ToString()); ;
-            //writer.WriteLine(scoreToDisplay.ToString() + "," + scoreTranslation.ToString() + "," + scoreRotation.ToString() + "," + posTranslation.ToString() + "," + rotRotation.ToString());
             writer.Flush();
             //writer.Close();
         }

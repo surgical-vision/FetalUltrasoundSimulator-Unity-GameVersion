@@ -41,7 +41,7 @@ public class GameMenuScript : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        // settings for obejct collision
+        // settings for object collision
         if (enableCollision)
         {
             probe.collisionThreshold = (float)0.19;
