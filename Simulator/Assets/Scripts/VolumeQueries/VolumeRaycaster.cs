@@ -71,7 +71,7 @@ namespace UnityVolumeRendering
                 // Raycast from AABB intersection.
                 Vector3 start = localRay.origin + localRay.direction * tStart;
                 Vector3 direction = localRay.direction.normalized;
-                for (float t = 0.0f; ; t += 0.01f)
+                for (float t = 0.0f;; t += 0.01f)
                 {
                     Vector3 position = start + direction * t;
                     // Check if we're outside of the bounds (=> stop raymarching).
