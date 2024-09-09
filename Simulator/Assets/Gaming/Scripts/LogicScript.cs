@@ -6,35 +6,43 @@ using System;
 using UnityEngine.UI;
 using System.IO;
 
+// Logic script to align the "currentPlane" with the "targetPlane" based on position and rotation, while tracking scores and timing
+
 public class LogicScript : MonoBehaviour
 {
+    // Variables to control the game's logic
     public int playerScore;
     public bool targetComplete = false;
     public float prevTimeCount, timeCount;
     public bool writeCSV = false;
 
+    // UI elements to display relevant information such as player position, score and a timer
     public Text positionText;
     public Text scoreText;
     public Text scoreDisplay;
     public Text timerText;
 
+    // Game objects related to gameplay, lile the planes, the success screen and the reset button
     public GameObject currentPlane;
     public GameObject targetPlane;
     public GameObject gameSpace;
     public GameObject successScreen;
     public GameObject resetButton;
 
+    // Utility variables to for calculation and file writing
     private double score;
     private string distX, distY, distZ;
     StreamWriter writer;
     private float timeCSV;
     public float hitPoint;
 
+    // Reference to SocketClient component, which is handling external communication to the haptic device
     private SocketClient socket;
 
     // Start is called before the first frame update
     void Start()
     {
+        // Initialization of the communication with the haptic device
         socket = GameObject.FindGameObjectWithTag("Client").GetComponent<SocketClient>();
 
         //writer = new StreamWriter(Application.dataPath + "/Gaming/Experiments/stiffness_50.csv");
@@ -45,22 +53,25 @@ public class LogicScript : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        // show distance until target plane (center point)
+        // show distance to target plane (center point) - relative position between the currentPlane and the targetPlane
         ShowPosition();
 
-        // show time used to reach target plane
+        // show time used to reach target plane (time passed since the last target completion)
         timeCount = ShowTimer(prevTimeCount);
 
         if (targetComplete != true)
         {
             prevTimeCount = timeCount;
             successScreen.SetActive(false);
+            // Player's score based on the distance and rotation difference between the currentPlane and the targetPlane
             score = ComputeScore(currentPlane, targetPlane);
         }
         
+        // Update scores in the UI
         scoreText.text = "Score: " + (100 * score).ToString("N2");
         scoreDisplay.text = (100 * score).ToString("N2");
 
+        // If the score is higher than 0.80 and the target has not already been marked complete, the success screen and reset button are shown, and the target is marked complete.
         if ((score > 0.80) && (targetComplete != true))
         {
             successScreen.SetActive(true);
@@ -69,13 +80,17 @@ public class LogicScript : MonoBehaviour
         }
     }
 
+    // The following function calculates the player's score by considering both the translation (position difference) and rotation (orientation difference) between the current and target planes.
     private double ComputeScore(GameObject P, GameObject T)
     {
         //Vector3 boundaryCentroid = new Vector3((float)0.9, (float)-0.6, (float)-2.6);
 
         // calculate translation and rotation from target plane
         //double deltaTranslation = Vector3.Distance(Vector3.Normalize(P.transform.position), Vector3.Normalize(T.transform.position));
+
+        // positional distance between the two planes
         double deltaTranslation = Vector3.Distance(P.transform.position, T.transform.position);
+        // rotational difference
         double deltaRotation = ComputeRotation(P, T);
 
         if (deltaTranslation > 0.6)
@@ -83,7 +98,8 @@ public class LogicScript : MonoBehaviour
             deltaTranslation = 0.6;
         }
 
-        // calculate current score
+        // calculate current score and score normalization
+        // The position and rotation differences are normalized to a scale, with larger values being penalized (values exceeding a limit are clamped)
         double scoreTranslation = NormalizeData(deltaTranslation, 0, 0.6);
         double scoreRotation = NormalizeData(deltaRotation, 0, 90);
         double scoreToDisplay = 0.5 * scoreRotation + 0.5 * scoreTranslation;
@@ -97,9 +113,12 @@ public class LogicScript : MonoBehaviour
         {
             posTranslation = -posTranslation;
         }
+
+        // The final score is a weigthed combination of the translation and rotation scores
         Vector3 targetDirection = T.transform.position - P.transform.position;
         double angleRotation = Vector3.SignedAngle(targetDirection, P.transform.up, T.transform.up);
         double rotRotation = -deltaRotation;
+        
         if (angleRotation < 0)
         {
             rotRotation = -rotRotation;
@@ -107,6 +126,7 @@ public class LogicScript : MonoBehaviour
 
         //Debug.DrawRay(P.transform.position, P.transform.up * 3);
 
+        // If writeCSV is true, the score and plane positions are written to a CSV file at every frame
         if (writeCSV)
         {
             timeCSV += Time.deltaTime;
@@ -119,6 +139,7 @@ public class LogicScript : MonoBehaviour
         return scoreToDisplay;
     }
 
+    // This function calculates the angular difference between the normal vectors (upward direction) of the two planes using the dot product formula
     private double ComputeRotation(GameObject P, GameObject T)
     {
         // extract normal vector of the plane
@@ -133,6 +154,8 @@ public class LogicScript : MonoBehaviour
         }
         double angleR = Math.Acos(Math.Round(dotProduct, 5));
         double angleD = angleR * Mathf.Rad2Deg;
+        
+        // If the angle exceeds 90 degrees, it is adjusted to reflect a mirrored rotation (keeping the angle between 0 and 90 degrees)
         if (angleD > 90)
         {
             angleD = Math.Abs(180 - angleD);
@@ -141,6 +164,7 @@ public class LogicScript : MonoBehaviour
         return angleD;
     }
 
+    // This function takes raw data (e.g., distance or angle) and normalizes it within a specific range (e.g., between 0 and 1)
     private double NormalizeData(double rawData, double rangeMax, double rangeMin)
     {
         double normData = (rawData - rangeMin) / (rangeMax - rangeMin);
@@ -148,6 +172,7 @@ public class LogicScript : MonoBehaviour
         return normData;
     }
 
+    // This function increments and formats the timeToDisplay variable and updates the timer in the UI
     private float ShowTimer(float timeToDisplay)
     {
         timeToDisplay += Time.deltaTime;
@@ -158,6 +183,7 @@ public class LogicScript : MonoBehaviour
         return timeToDisplay;
     }
 
+    // The following list retrieves the corner vertices of the plane by scaling and transforming the local vertex positions to global coordinates. It can be used for collision or alignment detection (not used atm)
     private List<Vector3> cornerVertices(GameObject plane)
     {
         List<Vector3> localPoints;
@@ -183,6 +209,7 @@ public class LogicScript : MonoBehaviour
         return cornerPoints;
     }
 
+    // This method compares the positions of the corners of two planes to check their alignment, potentially contributing to score adjustments or target validation (not used at the moment).
     private double VerifyPlane(GameObject P, GameObject T)
     {
         List<bool> alignPlane = new List<bool>();
@@ -215,6 +242,7 @@ public class LogicScript : MonoBehaviour
         return verticeScore;
     }
 
+    // This method displays the positional difference between the currentPlane and the targetPlane in the positionText UI element
     private void ShowPosition()
     {
         double distanceX = targetPlane.transform.position.x - currentPlane.transform.position.x;
