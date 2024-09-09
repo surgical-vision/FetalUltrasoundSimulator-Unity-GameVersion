@@ -12,7 +12,7 @@ public class SocketClient : MonoBehaviour
     private Thread clientThread;
     private TcpClient tcpClient;
     private bool isConnected = false;
-    private float scale = 15f; // originally 20.0f
+    private float scale = 15f; // CW: originally 20.0f
     private Vector3 pos_vect, rot_vect;
 
     private float getZ;
@@ -29,11 +29,10 @@ public class SocketClient : MonoBehaviour
     private ConcurrentQueue<(Vector3 position, Vector3 rotation)> poseQueue = new ConcurrentQueue<(Vector3, Vector3)>();
 
 
-    // below is all additional things
+    // CW: additional variables
     private Vector3 lastPosition;
     private Vector3 lastRotation;
     private float smoothingFactor = 1f;
-
     private bool inStartupPhase = true;
     private float startupDuration = 2.0f;
     private float startupTimer = 0.0f;
@@ -125,32 +124,32 @@ public class SocketClient : MonoBehaviour
     // Update is called once per frame (it dequeues the pose data from poseQueue and updates the GameObject's position (transform.localPosition) and rotation (transform.localRotation).)
     void Update()
     {
-        // // additional stuff here: smoothing of movements could be applied by interpolating between the current and last position/rotation using Vector3.Lerp for position and Quaternion.Slerp for rotation.
-        // if (inStartupPhase)
-        // {
-        //    startupTimer += Time.deltaTime;
-        //     if (startupTimer < startupDuration)
-        //    {
-        //        transform.localPosition = Vector3.Lerp(transform.localPosition, safePosition, Time.deltaTime / startupDuration);
-        //     }
-        //    else
-        //    {inStartupPhase = false;} return;
-        //}
+        // CW: smoothing of movements could be applied by interpolating between the current and last position/rotation using Vector3.Lerp for position and Quaternion.Slerp for rotation.
+        if (inStartupPhase)
+        {
+           startupTimer += Time.deltaTime;
+            if (startupTimer < startupDuration)
+           {
+               transform.localPosition = Vector3.Lerp(transform.localPosition, safePosition, Time.deltaTime / startupDuration);
+            }
+           else
+           {inStartupPhase = false;} return;
+        }
 
         // Check if there are any pose values in the queue
         // The received pose data is dequeued and used to update the position and rotation of the GameObject this script is attached to
         if (poseQueue.TryDequeue(out (Vector3 position, Vector3 rotation) pose))
         {
-            // Update the GameObject's position and rotation with the received pose values
-            transform.localPosition = pose.position;
-            transform.localRotation = Quaternion.Euler(pose.rotation);
+            // // Update the GameObject's position and rotation with the received pose values
+            // transform.localPosition = pose.position;
+            // transform.localRotation = Quaternion.Euler(pose.rotation);
 
-            // // above code was removed, below code added: smoothing movements by interpolating between the last and current positions and rotations. 
-            //transform.localPosition = Vector3.Lerp(lastPosition, pose.position, smoothingFactor);
-            //transform.localRotation = Quaternion.Slerp(Quaternion.Euler(lastRotation), Quaternion.Euler(pose.rotation), smoothingFactor);
+            // CW: above code was removed and replaced with the one below: smoothing movements by interpolating between the last and current positions and rotations. 
+            transform.localPosition = Vector3.Lerp(lastPosition, pose.position, smoothingFactor);
+            transform.localRotation = Quaternion.Slerp(Quaternion.Euler(lastRotation), Quaternion.Euler(pose.rotation), smoothingFactor);
 
-            //lastPosition = transform.localPosition;
-            //lastRotation = transform.localRotation.eulerAngles;
+            lastPosition = transform.localPosition;
+            lastRotation = transform.localRotation.eulerAngles;
         }
 
         // If the message flag is set, the script sends a signal to the server with SendData(1000) and resets the flag. This is used for sending feedback or commands back to the server.
@@ -160,17 +159,17 @@ public class SocketClient : MonoBehaviour
             message = false;
         }
 
-        // // additional stuff here: positional correction or force application when a specific condition is met (touchBelly). 
-        // if (touchBelly && transform.localPosition.z < posBelly)
+        // CW: positional correction or force application when a specific condition is met (touchBelly). 
+        if (touchBelly && transform.localPosition.z < posBelly)
+        {
+           transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, posBelly);
+        }
+        // if (touchBelly)
         // {
-        //    transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, posBelly);
-        //}
-        //if (touchBelly)
-        //{
-            //transform.GetComponent<Rigidbody>().velocity = new Vector3(0f, 0f, 0f);
-            //posBelly = transform.localPosition.z;
-            //SendData((float)0.08);
-        //}
+        //     // transform.GetComponent<Rigidbody>().velocity = new Vector3(0f, 0f, 0f);
+        //     // posBelly = transform.localPosition.z;
+        //     // SendData((float)0.08);
+        // }
     }
 
     void FixedUpdate()
@@ -202,35 +201,39 @@ public class SocketClient : MonoBehaviour
     // These methods handle collision events. In OnCollisionEnter, when an object with the tag "Belly" is hit, it could enable touchBelly and store the collision position (posBelly). It is intended to adjust the GameObject's velocity or position based on the collision, perhaps providing a rebounding effect using Vector3.Reflect.
     void OnCollisionEnter(Collision collision)
     {
-        // below was originally removed
-        //touchBelly = true;
-        //posBelly = transform.localPosition.z;
+        // the following two lines were removed by SP
+        // touchBelly = true;
+        // posBelly = transform.localPosition.z;
 
-        //ALL of below is completely new, so delete if necessary
-        //if (collision.gameObject.CompareTag("Belly") && !inStartupPhase)
-       // {touchBelly = true; posBelly = transform.localPosition.z; Rigidbody rb = GetComponent<Rigidbody>();
-           // if (rb != null)
-           // {
-            //    Vector3 collisionNormal = collision.contacts[0].normal;
-            //    Vector3 incomingVelocity = rb.velocity;
-            //    Vector3 reboundVelocity = Vector3.Reflect(incomingVelocity, collisionNormal);
-            //    rb.velocity = reboundVelocity * 0.5f;
-            //}
-
-        //}
+        // CW: All the code below is completely new, so delete if necessary
+        if (collision.gameObject.CompareTag("Belly") && !inStartupPhase)
+        {
+            touchBelly = true; 
+            posBelly = transform.localPosition.z; 
+            Rigidbody rb = GetComponent<Rigidbody>();
+            
+            if (rb != null)
+            {
+                Vector3 collisionNormal = collision.contacts[0].normal;
+                Vector3 incomingVelocity = rb.velocity;
+                Vector3 reboundVelocity = Vector3.Reflect(incomingVelocity, collisionNormal);
+                rb.velocity = reboundVelocity * 0.5f;
+            }
+        }
+        // CW: end of new code
     }
 
     private void OnCollisionExit(Collision collision)
     {
-        // originally below was removed
-        //touchBelly = false;
+        // the line below was removed by SP
+        // touchBelly = false;
 
-
-        // below is new and should be deleted if doesn't work
-        //if (collision.gameObject.CompareTag("Belly") && !inStartupPhase)
-        //{
-          //  touchBelly = false;
-       // }
+        // CW: All the code below is completely new, so delete if it does not work
+        if (collision.gameObject.CompareTag("Belly") && !inStartupPhase)
+        {
+           touchBelly = false;
+        }
+        // end of new code
     }
 
     // Send haptic feedback to the server: it converts a float value (sendCode) into a string and sends it via the network stream to the server. Error handling is in place to catch exceptions if the connection fails.
